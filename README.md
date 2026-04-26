@@ -69,10 +69,6 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 
 ### 5) Run the chatbot
 
-```bash
-python main.py
-```
-
 > Update the entrypoint command above if your main file is different.
 
 ## Observability with Langfuse
