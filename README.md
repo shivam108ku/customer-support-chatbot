@@ -19,6 +19,7 @@ It uses **DeepSeek LLM** for context-aware response generation and integrates **
 - **LangGraph**
 - **DeepSeek LLM**
 - **Langfuse**
+- **Agentic AI**
 
 ## Architecture Overview
 
