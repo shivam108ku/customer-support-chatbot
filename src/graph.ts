@@ -1,19 +1,32 @@
-import { StateGraph } from "@langchain/langgraph";
+import { END, StateGraph } from "@langchain/langgraph";
 import { StateAnnotation } from "./state";
 import { model } from "./model";
 
 async function frontDeskSupport(state: typeof StateAnnotation.State) {
   const SYSTEM_PROMPT = `You are frontline support staff for RedHacker, an ed-tech company that helps software 
-  developers excel in their careers through practical web development and Generative AI courses.
-  Be concise in your responses.
+developers excel in their careers through practical web development and Generative AI courses.
+Be concise in your responses.
 
- You can chat with students and help them with basic questions, but if the student is having a
- marketing or learning support query, do not try to answer the question directly or gather information.
+You can chat with students and help them with basic questions like greetings or general company info.
 
-Instead, immediately transfer them to the marketing team (promo codes, discounts, offers, and 
-special campaigns) or learning support team (courses, syllabus coverage, learning paths, and 
-study strategies) by asking the user to hold for a moment.
-Otherwise, just respond conversationally.`;
+However, if the student asks ANYTHING related to:
+- Course recommendations or which course to take
+- Their learning path or roadmap
+- Syllabus or course content details
+- Study strategies or schedules
+- Skill level assessments
+
+You MUST NOT answer these directly. Instead, say: 
+"Great question! Let me connect you with our learning support team. Please hold for a moment."
+
+If the student asks ANYTHING related to:
+- Promo codes, discounts, or offers
+- Pricing or special campaigns
+
+You MUST NOT answer these directly. Instead, say:
+"Sure! Let me connect you with our marketing team. Please hold for a moment."
+
+For everything else, respond conversationally.`;
 
   const supportResponse = await model.invoke([
     {
@@ -27,17 +40,14 @@ Otherwise, just respond conversationally.`;
   Your job is to detect whether a customer respresentative is routing a user to a marketing team 
   or learning support team, or if they are just responding conversationally`;
 
-  const CATEGORIZATION_HUMAN_PROMPT = `The previous conversation is an interaction between a customer 
-  support representative and a user.
-  Extract whether the representative is routing the user to a marketing team or learning support 
-  team, or whether they are just responding conversationally.
+  const CATEGORIZATION_HUMAN_PROMPT = `Based on the user's message below, decide where to route them.
 
-  Respond with a JSON object containing a single key called "nextRepresentative" 
-  with one of the following values:
+User message: "${(state.messages[state.messages.length - 1] as any).content}"
 
-  If they want to route the user to the marketing team, respond with "MARKETING".
-  If they want to route the user to the learning support team, respond with "LEARNING".
-  Otherwise, respond only with the word "RESPOND".`;
+Respond with a JSON object with key "nextRepresentative":
+- "MARKETING" if they ask about discounts, promo codes, offers, or pricing
+- "LEARNING" if they ask about courses, recommendations, roadmaps, syllabus, or study paths
+- "RESPOND" if it's just a greeting or general question`;
 
   const categorizationResponse = await model.invoke(
     [
@@ -46,6 +56,7 @@ Otherwise, just respond conversationally.`;
         content: CATEGORIZATION_SYSTEM_PROMPT,
       },
       ...state.messages,
+      supportResponse,
       {
         role: "user",
         content: CATEGORIZATION_HUMAN_PROMPT,
@@ -66,21 +77,59 @@ Otherwise, just respond conversationally.`;
     messages: [supportResponse],
     nextRepresentative: categorizationOutput.nextRepresentative,
   };
-
-  return state;
 }
 
 function marketingSupport(state: typeof StateAnnotation.State) {
+  console.log("By marketing");
   return state;
 }
 
 function learningSupport(state: typeof StateAnnotation.State) {
+  console.log("By learning");
   return state;
+}
+
+function whoIsNext(state: typeof StateAnnotation.State) {
+  if (state.nextRepresentative.includes("MARKETING")) {
+    return "marketingSupport";
+  } else if (state.nextRepresentative.includes("LEARNING")) {
+    return "learningSupport";
+  } else if (state.nextRepresentative.includes("RESPOND")) {
+    return END;
+  } else {
+    return END;
+  }
 }
 
 const graph = new StateGraph(StateAnnotation)
   .addNode("frontDeskSupport", frontDeskSupport)
   .addNode("marketingSupport", marketingSupport)
+
   .addNode("learningSupport", learningSupport)
-  .addEdge("__start__", "frontDeskSupport");
-// .addEdge('__start__', 'frontDeskSupport');
+  .addEdge("__start__", "frontDeskSupport")
+  .addEdge("marketingSupport", "__end__")
+  .addEdge("learningSupport", "__end__")
+  .addConditionalEdges("frontDeskSupport", whoIsNext, {
+    marketingSupport: "marketingSupport",
+    learningSupport: "learningSupport",
+    __end__: END,
+  });
+
+const app = graph.compile();
+
+async function main() {
+  const stream = await app.stream({
+    messages: [
+      {
+        role: "user",
+        content: "Do you have any coupon code for the courses",
+      },
+    ],
+  });
+  for await (const value of stream) {
+    console.log("---step---");
+    console.log(value);
+    console.log("---step---");
+  }
+}
+main();
