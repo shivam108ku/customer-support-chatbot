@@ -3,8 +3,10 @@ import { StateAnnotation } from "./state";
 import { model } from "./model";
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import { getOffers } from "./tools";
+import type { AIMessage } from "@langchain/core/messages";
 
 const marketingTools = [getOffers]
+const marketingToolNode = new ToolNode(marketingTools);
 
 async function frontDeskSupport(state: typeof StateAnnotation.State) {
   const SYSTEM_PROMPT = `You are frontline support staff for RedHacker, an ed-tech company that helps software 
@@ -83,9 +85,41 @@ Respond with a JSON object with key "nextRepresentative":
   };
 }
 
-function marketingSupport(state: typeof StateAnnotation.State) {
+async function marketingSupport(state: typeof StateAnnotation.State) {
+
+  const llmWithTools = model.bindTools(marketingTools)
+
+  const SYSTEM_PROMPT = `You are the marketing representative for RedHacker, an ed-tech company. 
+Your role is to help students with questions about:
+- Promo codes and discount offers
+- Pricing information
+- Special campaigns and promotions
+- Course packages and bundles
+
+Use the getOffers tool to fetch available offers and promotions that match the student's needs.
+Be friendly and highlight the value of our courses. Always provide the most relevant offers available.`;
+
+
+  let trimmedHistory = state.messages;
+
+  const lastMessage = trimmedHistory[trimmedHistory.length - 1];
+
+  if (lastMessage?.getType() === 'ai') {
+    trimmedHistory = trimmedHistory.slice(0, -1);
+  }
+
+  const marketingResponse = await llmWithTools.invoke([
+    {
+      role: "system",
+      content: SYSTEM_PROMPT,
+    },
+    ...trimmedHistory,
+  ]);
+
   console.log("By marketing");
-  return state;
+  return {
+    messages: [marketingResponse],
+  };
 }
 
 function learningSupport(state: typeof StateAnnotation.State) {
@@ -105,19 +139,42 @@ function whoIsNext(state: typeof StateAnnotation.State) {
   }
 }
 
+function isMarketingTool(state: typeof StateAnnotation.State) {
+    const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+
+    if (lastMessage.tool_calls?.length) {
+        return 'marketingTools';
+    }
+
+    return '__end__';
+}
+
+function isLearningTool(state: typeof StateAnnotation.State) {
+    const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+
+    if (lastMessage.tool_calls?.length) {
+        return 'learningTools';
+    }
+
+    return '__end__';
+}
+
 const graph = new StateGraph(StateAnnotation)
   .addNode("frontDeskSupport", frontDeskSupport)
   .addNode("marketingSupport", marketingSupport)
 
   .addNode("learningSupport", learningSupport)
+  .addNode('marketingTool', marketingToolNode)
   .addEdge("__start__", "frontDeskSupport")
-  .addEdge("marketingSupport", "__end__")
+  .addEdge("marketingTool", "marketingSupport")
   .addEdge("learningSupport", "__end__")
   .addConditionalEdges("frontDeskSupport", whoIsNext, {
     marketingSupport: "marketingSupport",
     learningSupport: "learningSupport",
     __end__: END,
-  });
+  }).addConditionalEdges('marketingSupport', isMarketingTool, {
+    marketingTools: 'marketingTool',
+  })
 
 const app = graph.compile();
 

@@ -1,7 +1,4 @@
-import { ChatDeepSeek } from "@langchain/deepseek";
- 
-
- 
+import { ChatDeepSeek } from "@langchain/deepseek"; 
 
 export const model = new ChatDeepSeek({
   model: "deepseek-chat",
