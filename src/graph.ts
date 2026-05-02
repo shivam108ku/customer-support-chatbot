@@ -174,6 +174,7 @@ const graph = new StateGraph(StateAnnotation)
     __end__: END,
   }).addConditionalEdges('marketingSupport', isMarketingTool, {
     marketingTools: 'marketingTool',
+    __end__: END, 
   })
 
 const app = graph.compile();
