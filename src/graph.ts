@@ -1,6 +1,10 @@
 import { END, StateGraph } from "@langchain/langgraph";
 import { StateAnnotation } from "./state";
 import { model } from "./model";
+import { ToolNode } from '@langchain/langgraph/prebuilt';
+import { getOffers } from "./tools";
+
+const marketingTools = [getOffers]
 
 async function frontDeskSupport(state: typeof StateAnnotation.State) {
   const SYSTEM_PROMPT = `You are frontline support staff for RedHacker, an ed-tech company that helps software 
