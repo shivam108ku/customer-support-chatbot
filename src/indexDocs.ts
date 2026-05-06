@@ -1,12 +1,12 @@
 import { PDFLoader } from '@langchain/community/document_loaders/fs/pdf';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-import { OpenAIEmbeddings } from '@langchain/openai';
+import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/huggingface_transformers';
 import { PineconeStore } from '@langchain/pinecone';
 import { Pinecone as PineconeClient } from '@pinecone-database/pinecone';
 import { ChatDeepSeek } from "@langchain/deepseek";
 
-const embeddings = new OpenAIEmbeddings({
-    model: 'text-embedding-3-small',
+const embeddings = new HuggingFaceTransformersEmbeddings({
+    model: 'Xenova/all-MiniLM-L6-v2',  // 384 dimensions
 });
 
 const pinecone = new PineconeClient();
@@ -38,7 +38,7 @@ export async function indexTheDocument(filePath: string) {
     await vectorStore.addDocuments(documents);
     console.log('Done ✅');
 }
-indexTheDocument('../cg-knowledge-base.pdf')
+indexTheDocument('./cg-knowledge-base.pdf')
 
 export const model = new ChatDeepSeek({
     model: "deepseek-chat",
