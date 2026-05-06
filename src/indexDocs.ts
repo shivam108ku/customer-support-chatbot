@@ -38,6 +38,7 @@ export async function indexTheDocument(filePath: string) {
     await vectorStore.addDocuments(documents);
     console.log('Done ✅');
 }
+indexTheDocument('../cg-knowledge-base.pdf')
 
 export const model = new ChatDeepSeek({
     model: "deepseek-chat",
